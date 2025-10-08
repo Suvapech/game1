@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>เล่นหมากรุก</title>
+<style>
+  body {
+    display: flex; flex-direction: column; align-items: center;
+    background: linear-gradient(to bottom, #1b1b1b, #3a3a3a);
+    color: white; font-family: 'Segoe UI', sans-serif;
+    margin: 0; padding: 0;
+  }
+
+  /* Navbar */
+  .navbar {
+    width: 100%;
+    background: #2c3e50;
+    padding: 12px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.7);
+  }
+
+  .navbar .logo {
+    font-weight: bold;
+    font-size: 1.6rem;
+    color: #f0f0f0;
+    text-shadow: 1px 1px 3px #000;
+  }
+
+  .navbar .menu a {
+    color: #f0f0f0;
+    margin-left: 20px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 1rem;
+    padding: 6px 12px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+  }
+
+  .navbar .menu a:hover {
+    background: #1abc9c;
+    color: #fff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+  }
+
+  h1 { margin: 20px 0 10px 0; color: #f0f0f0; text-shadow: 2px 2px 5px #000; }
+
+  .controls { margin-bottom: 20px; }
+  button {
+    margin: 5px; padding: 8px 16px; font-size: 16px;
+    border: none; border-radius: 8px; cursor: pointer;
+    transition: all 0.2s ease;
+    background: linear-gradient(145deg, #fffa, #ffffff11);
+    color: #fff; box-shadow: 2px 2px 6px rgba(0,0,0,0.5);
+  }
+  button:hover {
+    transform: translateY(-2px); box-shadow: 4px 4px 10px rgba(0,0,0,0.7);
+  }
+
+  .board {
+    display: grid;
+    grid-template-columns: repeat(8, 70px);
+    grid-template-rows: repeat(8, 70px);
+    border: 5px solid #444;
+    border-radius: 10px;
+    box-shadow: 0 0 20px rgba(0,0,0,0.7);
+    margin-bottom: 50px;
+  }
+
+  .square {
+    width: 70px; height: 70px;
+    display: flex; justify-content: center; align-items: center;
+    font-size: 40px; cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .white { background: #f0d9b5; }
+  .black { background: #b58863; color: black; }
+
+  .square:hover { transform: scale(1.05); }
+  .highlight {
+    background: #6ab04c !important;
+    box-shadow: inset 0 0 15px rgba(255,255,255,0.3);
+  }
+</style>
+</head>
+<body>
+
+<!-- Navbar -->
+<div class="navbar">
+  <div class="logo">Chess Game</div>
+  <div class="menu">
+    <a href="index.html">Dashboard</a>
+    <a href="chess.html">หมากรุก</a>
+    <a href="tictactoe/Tic Tac Toe.html">Tic Tac Toe</a>
+  </div>
+</div>
+
+<h1>เล่นหมากรุก</h1>
+
+<div class="controls">
+  <button onclick="startGame('2P')">เล่นกับเพื่อน</button>
+  <button onclick="startGame('AI')">เล่นกับ AI</button>
+  <button onclick="resetGame()">เริ่มเกมใหม่</button>
+</div>
+
+<div class="board" id="board"></div>
+
+<script>
+const WHITE='w', BLACK='b';
+let board=[], turn=WHITE, selected=null, gameOver=false, mode='AI';
+let boardColors = {};
+
+const initial=[
+  ['r','n','b','q','k','b','n','r'],
+  ['p','p','p','p','p','p','p','p'],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  [null,null,null,null,null,null,null,null],
+  ['P','P','P','P','P','P','P','P','P'],
+  ['R','N','B','Q','K','B','N','R']
+];
+
+function pieceColor(p, y, x){
+  if(!p) return null;
+  const key = `${y}${x}`;
+  return boardColors[key] || (p === p.toUpperCase()?WHITE:BLACK);
+}
+
+function movesFor(x,y){
+  const p=board[y][x]; if(!p) return [];
+  const color=pieceColor(p,y,x); const dir=color===WHITE?-1:1;
+  const startRow=color===WHITE?6:1;
+  let moves=[];
+
+  if(p.toLowerCase()==='p'){
+    const ny=y+dir;
+    if(ny>=0 && ny<8 && !board[ny][x]) moves.push([x,ny]);
+    if(y===startRow && !board[ny][x] && !board[ny+dir][x]) moves.push([x,ny+dir]);
+    for(const nx of [x-1,x+1]){
+      if(nx>=0 && nx<8 && board[ny][nx] && pieceColor(board[ny][nx],ny,nx)!==color) moves.push([nx,ny]);
+    }
+    return moves;
+  }
+
+  const dirsKing=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  const dirsRook=[[1,0],[-1,0],[0,1],[0,-1]];
+  const dirsBishop=[[1,1],[1,-1],[-1,1],[-1,-1]];
+  const dirsQueen=dirsRook.concat(dirsBishop);
+
+  function rayMoves(dirs){
+    const result=[];
+    for(const [dx,dy] of dirs){
+      let nx=x+dx, ny=y+dy;
+      while(nx>=0 && nx<8 && ny>=0 && ny<8){
+        if(!board[ny][nx]) result.push([nx,ny]);
+        else { if(pieceColor(board[ny][nx],ny,nx)!==color) result.push([nx,ny]); break; }
+        nx+=dx; ny+=dy;
+      }
+    }
+    return result;
+  }
+
+  switch(p.toLowerCase()){
+    case 'r': return rayMoves(dirsRook);
+    case 'b': return rayMoves(dirsBishop);
+    case 'q': return rayMoves(dirsQueen);
+    case 'n': 
+      const steps=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+      return steps.map(([dx,dy])=>[x+dx,y+dy])
+                  .filter(([nx,ny])=>nx>=0&&nx<8&&ny>=0&&ny<8 && (!board[ny][nx] || pieceColor(board[ny][nx],ny,nx)!==color));
+    case 'k':
+      return dirsKing.map(([dx,dy])=>[x+dx,y+dy])
+                     .filter(([nx,ny])=>nx>=0&&nx<8&&ny>=0&&ny<8 && (!board[ny][nx] || pieceColor(board[ny][nx],ny,nx)!==color));
+  }
+  return [];
+}
+
+function move(from,to){
+  const [fx,fy]=from, [tx,ty]=to;
+  const p=board[fy][fx]; const color=pieceColor(p,fy,fx);
+  if(!p || color!==turn) return false;
+  if(!movesFor(fx,fy).map(m=>m.toString()).includes(to.toString())) return false;
+
+  board[ty][tx]=p; board[fy][fx]=null;
+  boardColors[`${ty}${tx}`] = color;
+  delete boardColors[`${fy}${fx}`];
+
+  const promotionRow=color===WHITE?0:7;
+  if(p.toLowerCase()==='p' && ty===promotionRow){
+    const promoteTo = prompt("เลื่อนขั้นเป็น (Q,R,B,N)").toUpperCase();
+    const mapping = { Q:'Q', R:'R', B:'B', N:'N', q:'Q', r:'R', b:'B', n:'N' };
+    const newPiece = mapping[promoteTo] || 'Q';
+    board[ty][tx] = newPiece;
+    boardColors[`${ty}${tx}`] = color;
+  }
+
+  const opponentKing=turn===WHITE?'k':'K';
+  if(!board.flat().includes(opponentKing)){
+    alert(`${turn===WHITE?'ขาว':'ดำ'} ชนะ! เกมจบแล้ว`);
+    gameOver=true;
+    return true;
+  }
+
+  turn=turn===WHITE?BLACK:WHITE;
+  if(!gameOver && mode==='AI' && turn===BLACK) setTimeout(AIMove,300);
+  return true;
+}
+
+const boardDiv=document.getElementById("board");
+
+function renderBoard(){
+  boardDiv.innerHTML="";
+  for(let y=0;y<8;y++){
+    for(let x=0;x<8;x++){
+      const sq=document.createElement("div");
+      sq.classList.add("square"); sq.classList.add((x+y)%2===0?'white':'black');
+
+      const p=board[y][x];
+      if(p){
+        const symbols={
+          'P':'♙','R':'♖','N':'♘','B':'♗','Q':'♕','K':'♔',
+          'p':'♟','r':'♜','n':'♞','b':'♝','q':'♛','k':'♚'
+        };
+        sq.textContent=symbols[p];
+        const color = boardColors[`${y}${x}`] || (p===p.toUpperCase()?WHITE:BLACK);
+        sq.style.color = color===WHITE?'white':'black';
+      }
+
+      sq.dataset.x=x; sq.dataset.y=y;
+      sq.addEventListener("click",onSquareClick);
+      boardDiv.appendChild(sq);
+    }
+  }
+}
+
+function highlightSquares(moves){
+  moves.forEach(([x,y])=>{
+    const idx=y*8+x;
+    boardDiv.children[idx].classList.add("highlight");
+  });
+}
+
+function clearHighlights(){
+  for(const sq of boardDiv.children) sq.classList.remove("highlight");
+}
+
+function onSquareClick(e){
+  if(gameOver || (mode==='AI' && turn===BLACK)) return;
+  const x=parseInt(e.currentTarget.dataset.x);
+  const y=parseInt(e.currentTarget.dataset.y);
+
+  if(selected){
+    const moved=move(selected,[x,y]);
+    clearHighlights(); selected=null;
+    if(moved) renderBoard();
+  }else{
+    const moves=movesFor(x,y);
+    if(moves.length>0){ selected=[x,y]; highlightSquares(moves); }
+  }
+}
+
+function startGame(selectedMode){ mode=selectedMode; resetGame(); }
+function resetGame(){
+  board=JSON.parse(JSON.stringify(initial));
+  boardColors = {};
+  for(let y=0;y<8;y++){
+    for(let x=0;x<8;x++){
+      const p = board[y][x];
+      if(p) boardColors[`${y}${x}`] = (p === p.toUpperCase()?WHITE:BLACK);
+    }
+  }
+  turn=WHITE; selected=null; gameOver=false;
+  renderBoard();
+}
+
+function AIMove(){
+  if(gameOver) return;
+  // AI พยายามกินก่อน
+  for(let y=0;y<8;y++){
+    for(let x=0;x<8;x++){
+      const p = board[y][x];
+      if(!p) continue;
+      if(pieceColor(p,y,x)===BLACK){
+        const moves = movesFor(x,y);
+        const capture = moves.find(([mx,my])=>board[my][mx]);
+        if(capture){
+          move([x,y], capture);
+          renderBoard();
+          return;
+        }
+      }
+    }
+  }
+  // ถ้าไม่มีตัวกิน เดินตัวแรกไปช่องแรก
+  for(let y=0;y<8;y++){
+    for(let x=0;x<8;x++){
+      const p = board[y][x];
+      if(!p) continue;
+      if(pieceColor(p,y,x)===BLACK){
+        const moves = movesFor(x,y);
+        if(moves.length>0){
+          move([x,y], moves[0]);
+          renderBoard();
+          return;
+        }
+      }
+    }
+  }
+}
+
+// เริ่มเกม
+resetGame();
+</script>
+
+</body>
+</html>
