@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Pokemon Space Bounce Deluxe V7</title>
+<style>
+body {
+  margin: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at center, #0a0030, #000010);
+  font-family: "Kanit", sans-serif;
+  color: white;
+}
+
+/* Navbar */
+.navbar {
+  width: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+  background: rgba(10, 0, 48, 0.9);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px -20px ; /* เพิ่ม padding ขอบซ้าย-ขวา */
+  height: 60px; 
+  box-shadow: 0 4px 20px rgba(0,0,80,0.5);
+  z-index: 1000;
+  backdrop-filter: blur(6px);
+}
+
+.navbar .logo {
+  font-size: 24px;
+  font-weight: bold;
+  color: #fff;
+  letter-spacing: 2px;
+  text-shadow: 0 0 8px #3b82f6, 0 0 12px #9333ea;
+}
+
+.navbar .menu a {
+  color: #fff;
+  text-decoration: none;
+  margin-left: 25px; /* ระยะห่างระหว่างเมนู */
+  font-size: 18px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.navbar .menu a::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 0%;
+  height: 2px;
+  background: #60a5fa;
+  transition: width 0.3s ease;
+}
+
+.navbar .menu a:hover::after {
+  width: 100%;
+}
+
+.navbar .menu a:hover {
+  background: rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 10px #3b82f6;
+}
+
+/* Canvas */
+canvas {
+  display: block;
+  margin: 80px auto 20px auto; /* เว้นช่องด้านบนให้พ้น Navbar */
+  background: linear-gradient(180deg, #05001a 0%, #000010 100%);
+  box-shadow: 0 0 30px rgba(0,0,80,0.7) inset;
+  border-radius: 10px;
+}
+
+/* ปุ่มเริ่มเกมและสปีด */
+button {
+  position: absolute;
+  top: 100px; /* ขยับลงมาพอดีกับ canvas */
+  background: linear-gradient(135deg, #3b82f6, #9333ea);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(147, 51, 234, 0.6);
+  transition: all 0.2s ease-in-out;
+}
+
+button:hover {
+  background: linear-gradient(135deg, #60a5fa, #a855f7);
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.8);
+  transform: scale(1.05);
+}
+
+#restartBtn { right: 20px; }
+#speedBtn { right: 160px; }
+
+/* วิธีเล่น */
+#instructions {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 30, 0.8);
+  border: 1px solid rgba(100, 100, 255, 0.4);
+  padding: 12px 18px;
+  border-radius: 10px;
+  font-size: 14px;
+  text-align: center;
+  line-height: 1.5em;
+  box-shadow: 0 0 12px rgba(0,0,255,0.4);
+}
+</style>
+</head>
+<body>
+<div class="navbar">
+  <div class="logo">Poke Ball Game</div>
+  <div class="menu">
+    <a href="index.html">Home</a>
+    <a href="chess.html">Chess</a>
+    <a href="tictactoe/Tic Tac Toe.html">Tic Tac Toe</a>
+    <a href="pokemon.html">Poke ball</a>
+  </div>
+</div>
+
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+<button id="restartBtn">เริ่มเกมใหม่</button>
+<button id="speedBtn">สปีดบูสต์ ⚡</button>
+
+<div id="instructions">
+  <strong>🌌 วิธีเล่น:</strong><br>
+  A = ซ้าย D = ขวา W = กระโดด Shift หรือ ⚡ = เร่งความเร็ว R = เริ่มเกมใหม่<br>
+  เดาะบอลเพื่อฆ่าศัตรูโปเกม่อน อย่าชนศัตรูตรงๆ เก็บโบนัสสีทองเพิ่มคะแนน<br>
+  เก็บโล่ป้องกัน (สูงสุด 3 อัน) เพื่อไม่ให้เกมจบเมื่อถูกชน
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const restartBtn = document.getElementById("restartBtn");
+const speedBtn = document.getElementById("speedBtn");
+
+// 🌌 พื้นหลังพารัลแลกซ์
+const bgLayers = [
+  { color: "rgba(25,0,70,0.4)", speed: 0.3, stars: [] },
+  { color: "rgba(0,50,150,0.5)", speed: 0.7, stars: [] },
+  { color: "rgba(100,0,200,0.6)", speed: 1.2, stars: [] }
+];
+bgLayers.forEach(layer => {
+  for(let i=0;i<50;i++){
+    layer.stars.push({ x: Math.random()*canvas.width, y: Math.random()*canvas.height, size: Math.random()*2+1 });
+  }
+});
+
+// 🧩 ผู้เล่น
+let pokemon = { x:380, y:400, w:100, h:100, vy:0, onGround:true, speed:5, boosting:false, shields:0 };
+let pokemonImg = new Image();
+pokemonImg.src = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png";
+let pokemonLoaded=false;
+pokemonImg.onload = ()=>pokemonLoaded=true;
+
+// ⚪ ลูกบอล
+let ball = { x:400, y:360, r:10, vx:0, vy:-8 };
+let baseBallSpeed = 8;
+
+// 👾 ศัตรู
+let enemies=[]; let spawnTimer=0;
+
+// ⭐ โบนัส
+let bonuses=[]; let bonusInterval=null;
+
+// 🛡️ โล่
+let shields=[]; let shieldInterval=null; const maxShields=3;
+
+// 🎯 คะแนน
+let score=0; let gameOver=false;
+
+// 🎮 การควบคุม
+let keys={};
+document.addEventListener("keydown",e=>keys[e.code]=true);
+document.addEventListener("keyup",e=>keys[e.code]=false);
+restartBtn.addEventListener("click",resetGame);
+speedBtn.addEventListener("click",activateBoost);
+document.addEventListener("keydown",e=>{
+  if(e.code==="KeyR") resetGame();
+  if(e.code==="ShiftLeft"||e.code==="ShiftRight") activateBoost();
+});
+
+function resetGame(){
+  pokemon.x=380; pokemon.y=400; pokemon.vy=0; pokemon.onGround=true;
+  pokemon.speed=5; pokemon.boosting=false; pokemon.shields=0;
+  ball.x=400; ball.y=360; ball.vx=0; ball.vy=-baseBallSpeed;
+  enemies=[]; bonuses=[]; shields=[];
+  score=0; gameOver=false; baseBallSpeed=8;
+  restartBtn.style.display="none";
+
+  // โบนัสทุก 10 วิ
+  if(bonusInterval) clearInterval(bonusInterval);
+  bonusInterval=setInterval(()=>{
+    let newBonus={ x: Math.random()*(canvas.width-30)+15, y: Math.random()*(canvas.height-200)+50, r:15, active:true };
+    bonuses.push(newBonus);
+  },10000);
+
+  // โล่ทุก 5 วิ
+  if(shieldInterval) clearInterval(shieldInterval);
+  shieldInterval=setInterval(()=>{
+    if(pokemon.shields<maxShields){
+      let newShield={ x: Math.random()*(canvas.width-30)+15, y: -20, w:20, h:20, vy:2 };
+      shields.push(newShield);
+    }
+  },5000);
+
+  loop();
+}
+
+function activateBoost(){
+  if(pokemon.boosting) return;
+  pokemon.boosting=true; pokemon.speed=9;
+  setTimeout(()=>{ pokemon.speed=5; pokemon.boosting=false; },3000);
+}
+
+function spawnEnemy(){
+  const pokeId = Math.floor(Math.random()*150)+1;
+  const img = new Image();
+  img.src=`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${pokeId}.png`;
+  enemies.push({ x: Math.random()*(canvas.width-40), y:-50, w:40, h:40, vy:3+Math.random()*2, img:img });
+}
+
+function updatePlayer(){
+  if(keys["KeyA"] && pokemon.x>0) pokemon.x-=pokemon.speed;
+  if(keys["KeyD"] && pokemon.x+pokemon.w<canvas.width) pokemon.x+=pokemon.speed;
+  if(keys["KeyW"] && pokemon.onGround){ pokemon.vy=-12; pokemon.onGround=false; }
+  pokemon.vy+=0.6; pokemon.y+=pokemon.vy;
+  if(pokemon.y>400){ pokemon.y=400; pokemon.vy=0; pokemon.onGround=true; }
+}
+
+function updateBall(){
+  ball.x+=ball.vx; ball.y+=ball.vy; ball.vy+=0.2;
+  if(ball.x-ball.r<0||ball.x+ball.r>canvas.width) ball.vx*=-1;
+  if(ball.y-ball.r<0) ball.vy*=-1;
+
+  // เดาะบอล
+  if(ball.y+ball.r>=pokemon.y && ball.x>pokemon.x && ball.x<pokemon.x+pokemon.w){
+    let relative=(ball.x-(pokemon.x+pokemon.w/2))/(pokemon.w/2);
+    ball.vx=relative*baseBallSpeed;
+    ball.vy=-baseBallSpeed;
+    score++; checkBallSpeed();
+  }
+
+  // โบนัส
+  bonuses.forEach((b,i)=>{
+    if(b.active){
+      let dx=ball.x-b.x, dy=ball.y-b.y;
+      if(Math.sqrt(dx*dx+dy*dy)<ball.r+b.r){ score+=5; b.active=false; checkBallSpeed(); }
+    }
+  });
+
+  // ศัตรูโดนลูกบอล
+  enemies.forEach((e,i)=>{
+    let dx=ball.x-(e.x+e.w/2), dy=ball.y-(e.y+e.h/2);
+    if(Math.abs(dx)<e.w/2+ball.r && Math.abs(dy)<e.h/2+ball.r){
+      score+=10; enemies.splice(i,1); ball.vy=-Math.abs(ball.vy); checkBallSpeed();
+    }
+  });
+
+  if(ball.y>canvas.height) endGame();
+}
+
+function checkBallSpeed(){ baseBallSpeed=8+Math.floor(score/100)*2; }
+
+function update(){
+  if(gameOver) return;
+
+  // พื้นหลัง
+  bgLayers.forEach(layer=>{
+    layer.stars.forEach(star=>{
+      star.y+=layer.speed;
+      if(star.y>canvas.height){ star.y=0; star.x=Math.random()*canvas.width; }
+    });
+  });
+
+  updatePlayer();
+  updateBall();
+
+  spawnTimer++;
+  if(spawnTimer>100){ spawnEnemy(); spawnTimer=0; }
+
+  // ศัตรูชนผู้เล่น
+  enemies.forEach((e,i)=>{
+    e.y+=e.vy;
+    if(e.y>canvas.height) enemies.splice(i,1);
+    if(e.x<pokemon.x+pokemon.w && e.x+e.w>pokemon.x && e.y<pokemon.y+pokemon.h && e.y+e.h>pokemon.y){
+      if(pokemon.shields>0){ pokemon.shields--; enemies.splice(i,1); }
+      else endGame();
+    }
+  });
+
+  // อัปเดตโล่
+  shields.forEach((s,i)=>{
+    s.y+=s.vy;
+    if(s.y>canvas.height) shields.splice(i,1);
+    // เก็บโล่
+    if(s.x<s.x+pokemon.w && s.x+s.w>pokemon.x && s.y<s.y+pokemon.h && s.y+s.h>pokemon.y){
+      if(pokemon.shields<maxShields){ pokemon.shields++; shields.splice(i,1); }
+    }
+  });
+}
+
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // พื้นหลัง
+  bgLayers.forEach(layer=>{
+    ctx.fillStyle=layer.color;
+    layer.stars.forEach(star=>{
+      ctx.beginPath();
+      ctx.arc(star.x,star.y,star.size,0,Math.PI*2);
+      ctx.fill();
+    });
+  });
+
+  // โล่
+  shields.forEach(s=>{
+    ctx.beginPath();
+    ctx.fillStyle="rgba(0,255,255,0.6)";
+    ctx.arc(s.x+s.w/2,s.y+s.h/2,s.w/2,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  // ผู้เล่น
+  if(pokemon.boosting){ ctx.shadowColor="cyan"; ctx.shadowBlur=20; } else ctx.shadowBlur=0;
+  if(pokemonLoaded) ctx.drawImage(pokemonImg,pokemon.x,pokemon.y,pokemon.w,pokemon.h);
+  else{ ctx.fillStyle="yellow"; ctx.fillRect(pokemon.x,pokemon.y,pokemon.w,pokemon.h); }
+
+  // ลูกบอล
+  ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2); ctx.fillStyle="white"; ctx.fill();
+
+  // โบนัส
+  bonuses.forEach(b=>{ if(b.active){ ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2); ctx.fillStyle="gold"; ctx.fill(); } });
+
+  // ศัตรู
+  enemies.forEach(e=>{ if(e.img.complete && e.img.naturalWidth>0) ctx.drawImage(e.img,e.x,e.y,e.w,e.h); });
+
+  ctx.shadowBlur=0;
+  ctx.fillStyle="white"; ctx.font="20px Arial"; ctx.fillText("คะแนน: "+score+" | โล่: "+pokemon.shields,20,30);
+}
+
+function endGame(){
+  gameOver=true;
+  ctx.fillStyle="rgba(0,0,30,0.8)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="white";
+  ctx.font="36px Arial";
+  ctx.fillText("เกมจบ! คะแนน: "+score,canvas.width/2-180,canvas.height/2);
+  restartBtn.style.display="block";
+}
+
+function loop(){ if(gameOver) return; update(); draw(); requestAnimationFrame(loop); }
+pokemonImg.onload=()=>{ pokemonLoaded=true; loop(); }
+</script>
+</body>
+</html>
